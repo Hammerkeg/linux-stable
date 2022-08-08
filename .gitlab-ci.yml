@@ -134,8 +134,6 @@ build-bin:
   image: hammerkeg/kernel_build
   needs:
     - job: prep_zfs
-  rules:
-    - if: $BUILD_DEB
   cache:
     - key: $CI_COMMIT_REF_SLUG
       paths:
