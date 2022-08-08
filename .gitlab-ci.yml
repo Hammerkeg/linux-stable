@@ -15,7 +15,7 @@ before_script:
   - PACKAGE_FILE="kernel_${PACKAGE_NAME}.tar.xz"
   - ZFS_PACKAGE_FILE="zfs_${PACKAGE_NAME}.tar.xz"
   - PACKAGE_REGISTRY_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/lx2k-kernel/${PACKAGE_NAME}"
-  - gpg --import /ssl/keys/private.pgp
+#  - gpg --import /ssl/keys/private.pgp
 
 prep_zfs:
   stage: prep_zfs
