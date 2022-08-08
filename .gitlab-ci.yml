@@ -165,7 +165,7 @@ bump-version:
   stage: bump-version
   image: hammerkeg/kernel_build
   needs:
-    - job: build-deb
+    - job: build-bin
   rules:
     - if: $CI_COMMIT_SHORT_SHA
   script:
