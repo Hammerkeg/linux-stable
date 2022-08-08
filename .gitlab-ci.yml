@@ -1,0 +1,175 @@
+stages:
+  - prep_zfs
+#  - build-src
+  - build-zfs
+  - build-bin
+  - bump-version
+
+variables:
+  XZ_DEFAULTS: "-T 0"
+  DEBIAN_FRONTEND: "noninteractive"
+
+before_script:
+  - BUILD_VERSION_VAR="BUILD_VERSION_`echo ${CI_COMMIT_BRANCH} | sed s/\\\./\_/g | sed s/\\-/\_/g`"
+  - PACKAGE_NAME="${CI_COMMIT_BRANCH}-${!BUILD_VERSION_VAR}"
+  - PACKAGE_FILE="kernel_${PACKAGE_NAME}.tar.xz"
+  - ZFS_PACKAGE_FILE="zfs_${PACKAGE_NAME}.tar.xz"
+  - PACKAGE_REGISTRY_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/lx2k-kernel/${PACKAGE_NAME}"
+  - gpg --import /ssl/keys/private.pgp
+
+prep_zfs:
+  stage: prep_zfs
+  image: hammerkeg/kernel_build
+  rules:
+    - if: $CI_COMMIT_SHORT_SHA
+  cache:
+    - key: $CI_COMMIT_REF_SLUG
+      paths:
+        - debian/
+    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+      paths:
+        - .zfs/
+    - key: $CI_PIPELINE_ID$CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+      paths:
+        - fs/Kconfig
+        - fs/Makefile
+        - fs/zfs/
+        - include/zfs/
+        - .version
+      policy: push
+  script:
+    - make prepare
+    - |
+      if [ -d ".zfs" ]
+      then
+        cd .zfs
+        git pull
+      else
+        git clone --depth=1 https://github.com/Hammerkeg/zfs.git .zfs
+        cd .zfs
+      fi
+    - ./autogen.sh
+    - ./configure --enable-linux-builtin --with-linux=${CI_PROJECT_DIR} --with-linux-obj=${CI_PROJECT_DIR}
+    - ./copy-builtin ${CI_PROJECT_DIR}
+    - cd ${CI_PROJECT_DIR}
+    - ./scripts/config --enable CONFIG_ZFS
+    - touch .version && echo ${!BUILD_VERSION_VAR} > .version
+
+#build-src:
+#  stage: build-src
+#  image: hammerkeg/kernel_build
+#  needs:
+#    - job: prep_zfs
+#  rules:
+#    - if: $BUILD_DEB
+#    - if: $CI_COMMIT_SHORT_SHA
+#  cache:
+#    - key: $CI_COMMIT_REF_SLUG
+#      paths:
+#        - debian/
+#    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+#      paths:
+#        - .zfs/
+#      policy: pull
+#    - key: $CI_PIPELINE_ID$CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+#      paths:
+#        - fs/Kconfig
+#        - fs/Makefile
+#        - fs/zfs/
+#        - include/zfs/
+#        - .version
+#      policy: pull
+#  script:
+#    - ./scripts/config --enable CONFIG_ZFS
+#    - make prepare
+#    - ORIG_TAR=$(dpkg-parsechangelog --show-field Source)_$(make kernelrelease).orig.tar.gz
+#    - |
+#      if [ -f "/pipeline_cache/linux_stable_originals/${ORIG_TAR}" ] #original file exists in pipeline
+#      then #build only changes
+#        echo "Building from original."
+#        echo -e "linux-upstream ($(make kernelrelease)-${!BUILD_VERSION_VAR}) impish; urgency=low\n\n  * Custom built Linux kernel.\n\n -- ${EMAIL}  $(date -R)" > debian/changelog
+#        cp /pipeline_cache/linux_stable_originals/${ORIG_TAR} ../${ORIG_TAR}
+#        debuild -S -sd -i'(\.git)|(\.zfs)|(scripts)|(.*\.so)' --no-sign
+#      else #initialize build
+#        echo "Building from new version."
+#        make -j`nproc --ignore=1` srcdeb-pkg
+#        cp ../${ORIG_TAR} /pipeline_cache/linux_stable_originals/${ORIG_TAR}
+#      fi
+#    - SOURCE_FILE_NAME=$(dpkg-parsechangelog --show-field Source)_$(dpkg-parsechangelog --show-field Version)_source.changes
+#    - cd ..
+#    - debsign -k ${SIGN_KEY} ${SOURCE_FILE_NAME}
+#    - dput ppa:hammerkeg/sr-lx2k ${SOURCE_FILE_NAME}
+
+build-zfs:
+  stage: build-zfs
+  image: hammerkeg/kernel_build
+  needs:
+    - job: prep_zfs
+  rules:
+    - if: $CI_COMMIT_SHORT_SHA
+  cache:
+    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+      paths:
+        - .zfs/
+      policy: pull
+    - key: $CI_PIPELINE_ID$CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+      paths:
+        - fs/Kconfig
+        - fs/Makefile
+        - fs/zfs/
+        - include/zfs/
+        - .config
+        - .version
+      policy: pull
+  script:
+    - cd .zfs
+    - make -j`nproc --ignore=1` && make -j`nproc --ignore=1` deb-utils
+    - tar -cJf ${ZFS_PACKAGE_FILE} *.deb
+    - rm *.deb
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${ZFS_PACKAGE_FILE} ${PACKAGE_REGISTRY_URL}/${ZFS_PACKAGE_FILE}
+
+build-bin:
+  stage: build-bin
+  image: hammerkeg/kernel_build
+  needs:
+    - job: prep_zfs
+  rules:
+    - if: $BUILD_DEB
+  cache:
+    - key: $CI_COMMIT_REF_SLUG
+      paths:
+        - debian/
+      policy: pull
+    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+      paths:
+        - .zfs/
+      policy: pull
+    - key: $CI_PIPELINE_ID$CI_RUNNER_ID$CI_COMMIT_REF_SLUG
+      paths:
+        - fs/Kconfig
+        - fs/Makefile
+        - fs/zfs/
+        - include/zfs/
+        - .config
+        - .version
+      policy: pull
+  script:
+    - make -j`nproc --ignore=1` bindeb-pkg
+    - tar -cJf ${PACKAGE_FILE} ../*.deb .zfs/*.deb
+    - rm ../*.deb
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${PACKAGE_FILE} ${PACKAGE_REGISTRY_URL}/${PACKAGE_FILE}
+
+bump-version:
+  stage: bump-version
+  image: hammerkeg/kernel_build
+  needs:
+    - job: build-deb
+  rules:
+    - if: $CI_COMMIT_SHORT_SHA
+  script:
+    - |
+      ((${BUILD_VERSION_VAR}=${!BUILD_VERSION_VAR}+1))
+      curl --request PUT --header "PRIVATE-TOKEN: ${API_TOKEN}" \
+      ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/variables/${BUILD_VERSION_VAR} --form "value=${!BUILD_VERSION_VAR}"
