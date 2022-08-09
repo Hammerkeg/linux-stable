@@ -112,15 +112,6 @@ build-zfs:
       paths:
         - .zfs/
       policy: pull
-    - key: $CI_PIPELINE_ID$CI_RUNNER_ID$CI_COMMIT_REF_SLUG
-      paths:
-        - fs/Kconfig
-        - fs/Makefile
-        - fs/zfs/
-        - include/zfs/
-        - .config
-        - .version
-      policy: pull
   script:
     - cd .zfs
     - make -j`nproc --ignore=1` && make -j`nproc --ignore=1` deb-utils
@@ -139,10 +130,6 @@ build-bin:
       paths:
         - debian/
       policy: pull
-    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
-      paths:
-        - .zfs/
-      policy: pull
     - key: $CI_PIPELINE_ID$CI_RUNNER_ID$CI_COMMIT_REF_SLUG
       paths:
         - fs/Kconfig
@@ -154,7 +141,7 @@ build-bin:
       policy: pull
   script:
     - make -j`nproc --ignore=1` bindeb-pkg
-    - tar -cJf ${PACKAGE_FILE} ../*.deb .zfs/*.deb
+    - tar -cJf ${PACKAGE_FILE} ../*.deb
     - rm ../*.deb
     - |
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${PACKAGE_FILE} ${PACKAGE_REGISTRY_URL}/${PACKAGE_FILE}
