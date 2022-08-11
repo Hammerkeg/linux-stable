@@ -140,6 +140,7 @@ build-bin:
         - .version
       policy: pull
   script:
+    - ./scripts/config --enable CONFIG_ZFS
     - make -j`nproc --ignore=1` bindeb-pkg
     - tar -cJf ${PACKAGE_FILE} ../*.deb
     - rm ../*.deb
