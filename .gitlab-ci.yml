@@ -94,6 +94,8 @@ build-bin:
       policy: pull
   script:
     - ./scripts/config --enable CONFIG_ZFS
+    - ./scripts/config --enable CONFIG_LRU_GEN
+    - ./scripts/config --enable CONFIG_LRU_GEN_ENABLED
     - make -j`nproc --ignore=1` bindeb-pkg
     - tar -cJf ${PACKAGE_FILE} ../*.deb
     - rm ../*.deb
