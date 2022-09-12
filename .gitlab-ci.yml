@@ -1,5 +1,4 @@
 stages:
-  - prep_zfs
   - build-zfs
   - build-bin
   - bump-version
@@ -15,22 +14,12 @@ before_script:
   - ZFS_PACKAGE_FILE="zfs_${PACKAGE_NAME}.tar.xz"
   - PACKAGE_REGISTRY_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/lx2k-kernel/${PACKAGE_NAME}"
 
-prep_zfs:
-  stage: prep_zfs
+build-zfs:
+  stage: build-zfs
   image: hammerkeg/kernel_build
   rules:
     - if: $CI_COMMIT_SHORT_SHA
-  cache:
-    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
-      paths:
-        - .zfs/
-        - fs/Kconfig
-        - fs/Makefile
-        - fs/zfs/
-        - include/zfs/
-      policy: push
   script:
-    - make prepare
     - |
       if [ -d ".zfs" ]
       then
@@ -41,28 +30,8 @@ prep_zfs:
         cd .zfs
       fi
     - ./autogen.sh
-    - ./configure --enable-linux-builtin --with-linux=${CI_PROJECT_DIR} --with-linux-obj=${CI_PROJECT_DIR}
-    - ./copy-builtin ${CI_PROJECT_DIR}
-
-build-zfs:
-  stage: build-zfs
-  image: hammerkeg/kernel_build
-  needs:
-    - job: prep_zfs
-  rules:
-    - if: $CI_COMMIT_SHORT_SHA
-  cache:
-    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
-      paths:
-        - .zfs/
-        - fs/Kconfig
-        - fs/Makefile
-        - fs/zfs/
-        - include/zfs/
-      policy: pull
-  script:
-    - cd .zfs
-    - make -j`nproc --ignore=1` && make -j`nproc --ignore=1` deb-utils
+    - ./configure --enable-systemd --with-linux=${CI_PROJECT_DIR} --with-linux-obj=${CI_PROJECT_DIR}
+    - make -j`nproc --ignore=1` deb-utils deb-dkms
     - tar -cJf ${ZFS_PACKAGE_FILE} *.deb
     - rm *.deb
     - |
@@ -71,19 +40,7 @@ build-zfs:
 build-bin:
   stage: build-bin
   image: hammerkeg/kernel_build
-  needs:
-    - job: prep_zfs
-  cache:
-    - key: $CI_RUNNER_ID$CI_COMMIT_REF_SLUG
-      paths:
-        - .zfs/
-        - fs/Kconfig
-        - fs/Makefile
-        - fs/zfs/
-        - include/zfs/
-      policy: pull
   script:
-    - ./scripts/config --enable CONFIG_ZFS
     - touch .version && echo ${!BUILD_VERSION_VAR} > .version
     - make -j`nproc --ignore=1` bindeb-pkg
     - tar -cJf ${PACKAGE_FILE} ../*.deb
