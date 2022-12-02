@@ -914,6 +914,23 @@ config ARM64_ERRATUM_1902691
 
 	  If unsure, say Y.
 
+config ARM64_ERRATUM_2457168
+	bool "Cortex-A510: 2457168: workaround for AMEVCNTR01 incrementing incorrectly"
+	depends on ARM64_AMU_EXTN
+	default y
+	help
+	  This option adds the workaround for ARM Cortex-A510 erratum 2457168.
+
+	  The AMU counter AMEVCNTR01 (constant counter) should increment at the same rate
+	  as the system counter. On affected Cortex-A510 cores AMEVCNTR01 increments
+	  incorrectly giving a significantly higher output value.
+
+	  Work around this problem by returning 0 when reading the affected counter in
+	  key locations that results in disabling all users of this counter. This effect
+	  is the same to firmware disabling affected counters.
+
+	  If unsure, say Y.
+
 config CAVIUM_ERRATUM_22375
 	bool "Cavium erratum 22375, 24313"
 	default y
@@ -1615,7 +1632,13 @@ endif # ARMV8_DEPRECATED
 
 endif # COMPAT
 
+config ARM64_MAX_ISA
+	int "ARMv8 Max ISA version (0-7)"
+	range 0 7
+	default "7"
+
 menu "ARMv8.1 architectural features"
+depends on ARM64_MAX_ISA > 0
 
 config ARM64_HW_AFDBM
 	bool "Support for hardware updates of the Access and Dirty page flags"
@@ -1677,6 +1700,7 @@ config ARM64_USE_LSE_ATOMICS
 endmenu # "ARMv8.1 architectural features"
 
 menu "ARMv8.2 architectural features"
+depends on ARM64_MAX_ISA > 1
 
 config AS_HAS_ARMV8_2
 	def_bool $(cc-option,-Wa$(comma)-march=armv8.2-a)
@@ -1729,6 +1753,7 @@ config ARM64_CNP
 endmenu # "ARMv8.2 architectural features"
 
 menu "ARMv8.3 architectural features"
+depends on ARM64_MAX_ISA > 2
 
 config ARM64_PTR_AUTH
 	bool "Enable support for pointer authentication"
@@ -1792,6 +1817,7 @@ config AS_HAS_CFI_NEGATE_RA_STATE
 endmenu # "ARMv8.3 architectural features"
 
 menu "ARMv8.4 architectural features"
+depends on ARM64_MAX_ISA > 3
 
 config ARM64_AMU_EXTN
 	bool "Enable support for the Activity Monitors Unit CPU extension"
@@ -1833,6 +1859,7 @@ config ARM64_TLB_RANGE
 endmenu # "ARMv8.4 architectural features"
 
 menu "ARMv8.5 architectural features"
+depends on ARM64_MAX_ISA > 4
 
 config AS_HAS_ARMV8_5
 	def_bool $(cc-option,-Wa$(comma)-march=armv8.5-a)
@@ -1867,6 +1894,8 @@ config ARM64_BTI_KERNEL
 	depends on CC_HAS_BRANCH_PROT_PAC_RET_BTI
 	# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=94697
 	depends on !CC_IS_GCC || GCC_VERSION >= 100100
+	# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106671
+	depends on !CC_IS_GCC
 	# https://github.com/llvm/llvm-project/commit/a88c722e687e6780dcd6a58718350dc76fcc4cc9
 	depends on !CC_IS_CLANG || CLANG_VERSION >= 120000
 	depends on (!FUNCTION_GRAPH_TRACER || DYNAMIC_FTRACE_WITH_REGS)
@@ -1941,6 +1970,7 @@ config ARM64_MTE
 endmenu # "ARMv8.5 architectural features"
 
 menu "ARMv8.7 architectural features"
+depends on ARM64_MAX_ISA > 5
 
 config ARM64_EPAN
 	bool "Enable support for Enhanced Privileged Access Never (EPAN)"
